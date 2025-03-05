@@ -43,7 +43,7 @@ function Upload() {
   const fetchUserCollections = async (userToken) => {
     try {
       const response = await axios.get(
-        "http://localhost:3000/api/flashcards/collections",
+        `${process.env.REACT_APP_API_URL}/api/flashcards/collections`,
         {
           headers: {
             Authorization: `Bearer ${userToken}`,
@@ -115,7 +115,7 @@ function Upload() {
     try {
       // Use the updated API endpoint
       const response = await axios.post(
-        "http://localhost:3000/api/flashcards/generate",
+        `${process.env.REACT_APP_API_URL}/api/flashcards/generate`,
         formData,
         {
           headers: {

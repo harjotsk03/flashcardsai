@@ -33,7 +33,7 @@ function AllDecks() {
         if (token) {
           // Fetch private collections (user's collections)
           const privateResponse = await axios.get(
-            "http://localhost:3000/api/flashcards/collections",
+            `${process.env.REACT_APP_API_URL}/api/flashcards/collections`,
             {
               headers: {
                 Authorization: `Bearer ${token}`,
@@ -45,7 +45,7 @@ function AllDecks() {
 
         // Fetch public collections
         const publicResponse = await axios.get(
-          "http://localhost:3000/api/flashcards/collections/public"
+          `${process.env.REACT_APP_API_URL}/api/flashcards/collections/public`
         );
         setPublicDecks(publicResponse.data);
       } catch (error) {

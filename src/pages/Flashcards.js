@@ -37,7 +37,9 @@ function Flashcards() {
         const userId = user?._id;
 
         // Create URL with userId as query parameter
-        const url = `http://localhost:3000/api/flashcards/collections/${collectionId}${
+        const url = `${
+          process.env.REACT_APP_API_URL
+        }/api/flashcards/collections/${collectionId}${
           userId ? `?userId=${userId}` : ""
         }`;
 

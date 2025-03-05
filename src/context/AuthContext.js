@@ -27,7 +27,7 @@ export const AuthProvider = ({ children }) => {
       };
 
       const response = await axios.get(
-        "http://localhost:3000/api/auth/profile",
+        `${process.env.REACT_APP_API_URL}/api/auth/profile`,
         config
       );
       setUser(response.data);
@@ -45,7 +45,7 @@ export const AuthProvider = ({ children }) => {
     try {
       setError(null);
       const response = await axios.post(
-        "http://localhost:3000/api/auth/login",
+        `${process.env.REACT_APP_API_URL}/api/auth/login`,
         {
           email: emailOrUsername,
           password,
@@ -69,7 +69,7 @@ export const AuthProvider = ({ children }) => {
     try {
       setError(null);
       const response = await axios.post(
-        "http://localhost:3000/api/auth/register",
+        `${process.env.REACT_APP_API_URL}/api/auth/register`,
         userData
       );
 
@@ -88,7 +88,7 @@ export const AuthProvider = ({ children }) => {
 
   const logout = async () => {
     try {
-      await axios.post("http://localhost:3000/api/auth/logout");
+      await axios.post(`${process.env.REACT_APP_API_URL}/api/auth/logout`);
     } catch (error) {
       console.error("Error during logout:", error);
     } finally {

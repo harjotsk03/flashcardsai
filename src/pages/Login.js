@@ -18,7 +18,7 @@ function Login() {
 
 const handleGoogleLogin = () => {
   // Redirect directly to the backend's Google auth route
-  window.location.href = `http://localhost:3000/api/auth/google`;
+  window.location.href = `${process.env.REACT_APP_API_URL}/api/auth/google`;
 };
 
 const handleSubmit = async (e) => {
