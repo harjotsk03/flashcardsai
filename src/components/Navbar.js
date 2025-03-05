@@ -63,7 +63,15 @@ function MobileDrawer({ isOpen, onClose, navItems, isActive, user, onLogout }) {
             {user ? (
               <>
                 <div className="flex items-center px-4 py-3 mx-2 mb-2">
-                  <UserCircleIcon className="w-8 h-8 mr-3 text-[#7231ff]" />
+                  {user?.profilePhoto ? (
+                    <img
+                      src={user.profilePhoto}
+                      alt="Profile"
+                      className="w-8 h-8 rounded-full mr-3 object-cover border border-gray-200"
+                    />
+                  ) : (
+                    <UserCircleIcon className="w-8 h-8 mr-3 text-[#7231ff]" />
+                  )}
                   <div>
                     <p className="font-medium text-gray-800">
                       {user.name || user.username}
@@ -83,12 +91,20 @@ function MobileDrawer({ isOpen, onClose, navItems, isActive, user, onLogout }) {
                 </button>
               </>
             ) : (
-              <Link to="/login" className="block" onClick={onClose}>
-                <div className="flex items-center px-4 py-3 mx-2 rounded-md text-gray-700 hover:bg-gray-100 transition-all duration-200">
-                  <UserCircleIcon className="w-5 h-5 mr-3" />
-                  <span className="font-medium">Sign In</span>
-                </div>
-              </Link>
+              <div className="flex flex-col gap-2">
+                <Link to="/login" className="block" onClick={onClose}>
+                  <div className="flex items-center px-4 py-3 mx-2 rounded-md text-gray-700 hover:bg-gray-100 transition-all duration-200">
+                    <UserCircleIcon className="w-5 h-5 mr-3" />
+                    <span className="font-medium">Sign In</span>
+                  </div>
+                </Link>
+                <Link to="/register" className="block" onClick={onClose}>
+                  <div className="flex items-center px-4 py-3 mx-2 rounded-md bg-[#7231ff] text-white hover:bg-[#6020e0] transition-all duration-200">
+                    <UserCircleIcon className="w-5 h-5 mr-3" />
+                    <span className="font-medium">Sign Up</span>
+                  </div>
+                </Link>
+              </div>
             )}
           </div>
         </div>
@@ -167,6 +183,15 @@ function Navbar() {
               <div className="flex items-center ml-4">
                 {user ? (
                   <div className="flex items-center">
+                    {user.profilePhoto ? (
+                      <img
+                        src={user.profilePhoto}
+                        alt="Profile"
+                        className="w-8 h-8 rounded-full mr-3 object-cover border border-gray-200"
+                      />
+                    ) : (
+                      <UserCircleIcon className="w-8 h-8 mr-3 text-[#7231ff]" />
+                    )}
                     <div className="mr-3">
                       <p className="font-medium text-gray-800">
                         {user.name || user.username}

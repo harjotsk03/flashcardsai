@@ -21,14 +21,40 @@ function Upload() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [showDeckNameDialog, setShowDeckNameDialog] = useState(false);
   const [deckName, setDeckName] = useState("");
-  const [flashcardsData, setFlashcardsData] = useState(null);
   const [token, setToken] = useState(null);
+  const [success, setSuccess] = useState(null);
+  const [collections, setCollections] = useState([]);
+  const [selectedCollectionId, setSelectedCollectionId] = useState("");
+  const [isNewCollection, setIsNewCollection] = useState(true);
+  const [isPublic, setIsPublic] = useState(false);
 
   // Get the authentication token from localStorage
   useEffect(() => {
     const userToken = localStorage.getItem("token");
     setToken(userToken);
+
+    // Fetch user's existing collections if authenticated
+    if (userToken) {
+      fetchUserCollections(userToken);
+    }
   }, []);
+
+  // Fetch user's collections for the dropdown
+  const fetchUserCollections = async (userToken) => {
+    try {
+      const response = await axios.get(
+        "http://localhost:3000/api/flashcards/collections",
+        {
+          headers: {
+            Authorization: `Bearer ${userToken}`,
+          },
+        }
+      );
+      setCollections(response.data);
+    } catch (err) {
+      console.error("Error fetching collections:", err);
+    }
+  };
 
   const onDrop = useCallback(async (acceptedFiles) => {
     if (acceptedFiles.length === 0) return;
@@ -40,9 +66,9 @@ function Upload() {
     setUploadProgress(0);
     const interval = setInterval(() => {
       setUploadProgress((prev) => {
-        if (prev >= 95) {
+        if (prev >= 100) {
           clearInterval(interval);
-          return 95;
+          return 100;
         }
         return prev + 5;
       });
@@ -52,50 +78,79 @@ function Upload() {
   const processFile = async () => {
     if (!file) return;
 
+    // Show the collection selection dialog
+    setShowDeckNameDialog(true);
+
+    // Default deck name based on file name (without extension)
+    const defaultName = file.name.replace(/\.[^/.]+$/, "");
+    setDeckName(defaultName);
+  };
+
+  const handleGenerateFlashcards = async () => {
+    if (!file) return;
+    if (isNewCollection && !deckName.trim()) {
+      setError("Please provide a name for your new collection");
+      return;
+    }
+    if (!isNewCollection && !selectedCollectionId) {
+      setError("Please select an existing collection");
+      return;
+    }
+
     setLoading(true);
     setError(null);
+    setSuccess(null);
 
     const formData = new FormData();
     formData.append("pdf", file);
 
-    // Add the collection name to the form data
-    // We'll use a temporary name that will be updated later
-    formData.append("collectionName", "Temporary Collection");
+    // Add either collectionId or collectionName based on user selection
+    if (isNewCollection) {
+      formData.append("collectionName", deckName.trim());
+      formData.append("isPublic", isPublic);
+    } else {
+      formData.append("collectionId", selectedCollectionId);
+    }
 
     try {
-      // Use the new API endpoint
+      // Use the updated API endpoint
       const response = await axios.post(
         "http://localhost:3000/api/flashcards/generate",
         formData,
         {
           headers: {
             "Content-Type": "multipart/form-data",
-            Authorization: `Bearer ${token}`, // Add the auth token
+            Authorization: `Bearer ${token}`,
           },
         }
       );
 
-      // Set progress to 100% when complete
-      setUploadProgress(100);
+      // Show success message
+      setSuccess("Flashcards successfully generated!");
 
-      // Store the flashcards data temporarily
-      setFlashcardsData(response.data.flashcards);
+      // Close dialog
+      setShowDeckNameDialog(false);
 
-      // Show the deck name dialog
-      setShowDeckNameDialog(true);
-
-      // Default deck name based on file name (without extension)
-      const defaultName = file.name.replace(/\.[^/.]+$/, "");
-      setDeckName(defaultName);
+      // Navigate to the collection page after a short delay
+      setTimeout(() => {
+        navigate(`/collections/${response.data.collection._id}`);
+      }, 1500);
     } catch (err) {
       console.error("Error details:", err.response?.data || err.message);
 
       if (err.response?.status === 401) {
         setError("You need to be logged in to generate flashcards.");
-        // Optionally redirect to login page
-        // navigate('/login');
+      } else if (err.response?.status === 403) {
+        setError(
+          "You don't have permission to add flashcards to this collection."
+        );
+      } else if (err.response?.status === 404) {
+        setError("The selected collection was not found.");
       } else {
-        setError("Failed to generate flashcards. Please try again.");
+        setError(
+          err.response?.data?.error ||
+            "Failed to generate flashcards. Please try again."
+        );
       }
 
       setUploadProgress(0);
@@ -104,68 +159,11 @@ function Upload() {
     }
   };
 
-  const handleSaveDeck = async () => {
-    if (!deckName.trim()) {
-      // If no name is provided, use a default name
-      setDeckName("My Flashcards");
-    }
-
-    try {
-      setLoading(true);
-
-      // First, create a new collection with the proper name
-      const createCollectionResponse = await axios.post(
-        "http://localhost:3000/api/flashcards/collections",
-        {
-          name: deckName.trim() || "My Flashcards",
-          description: `Generated from ${file.name}`,
-          isPublic: false,
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      const collectionId = createCollectionResponse.data._id;
-
-      // Then add the flashcards to this collection
-      await axios.post(
-        `http://localhost:3000/api/flashcards/collections/${collectionId}/cards`,
-        {
-          flashcards: flashcardsData,
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      // Close dialog and navigate to the new collection
-      setShowDeckNameDialog(false);
-      navigate(`/collections/${collectionId}`);
-    } catch (err) {
-      console.error("Error saving deck:", err.response?.data || err.message);
-      setError("Failed to save your flashcard deck. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    onDrop,
-    accept: {
-      "application/pdf": [".pdf"],
-    },
-    maxFiles: 1,
-  });
-
   const removeFile = () => {
     setFile(null);
     setUploadProgress(0);
     setError(null);
+    setSuccess(null);
   };
 
   // Check if user is authenticated
@@ -177,10 +175,18 @@ function Upload() {
     }
   }, [token, navigate]);
 
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop,
+    accept: {
+      "application/pdf": [".pdf"],
+    },
+    maxFiles: 1,
+  });
+
   return (
     <div className="bg-white min-h-screen flex flex-col">
       {/* Hero Section */}
-      <section className="relative overflow-hidden py-16 sm:py-24">
+      <section className="relative overflow-hidden pt-24 px-4">
         {/* Background Elements */}
         <div className="absolute top-0 right-0 w-48 h-48 md:w-64 md:h-64 bg-[#ffc01d] rounded-bl-full opacity-20 -z-10"></div>
         <div className="absolute bottom-0 left-0 w-32 h-32 md:w-48 md:h-48 bg-[#7231ff] rounded-tr-full opacity-10 -z-10"></div>
@@ -316,6 +322,18 @@ function Upload() {
               </div>
             )}
 
+            {/* Success Message */}
+            {success && (
+              <motion.div
+                className="mt-6 p-4 bg-green-50 rounded-lg flex items-start"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+              >
+                <CheckCircleIcon className="w-5 h-5 text-green-500 mr-3 mt-0.5" />
+                <p className="text-green-700">{success}</p>
+              </motion.div>
+            )}
+
             {/* Error Message */}
             {error && (
               <motion.div
@@ -379,8 +397,8 @@ function Upload() {
       </section>
 
       {/* Tips Section */}
-      <section className="py-12 bg-gray-50">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6">
+      <section className="px-4 pb-10 bg-gray-50">
+        <div className="max-w-5xl mx-auto">
           <div className="bg-white rounded-2xl shadow-md p-6 sm:p-8 border border-gray-100">
             <div className="flex items-start mb-4">
               <InformationCircleIcon className="w-6 h-6 text-[#7231ff] mr-3" />
@@ -405,7 +423,7 @@ function Upload() {
         </div>
       </section>
 
-      {/* Deck Name Dialog */}
+      {/* Collection Selection Dialog */}
       {showDeckNameDialog && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <motion.div
@@ -415,40 +433,139 @@ function Upload() {
             transition={{ duration: 0.3 }}
           >
             <h3 className="text-xl font-bold text-gray-900 mb-4">
-              Name Your Flashcard Deck
+              Create Flashcards
             </h3>
             <p className="text-gray-600 mb-6">
-              Give your flashcards a name to help you organize your study
-              materials.
+              Choose where to save your generated flashcards.
             </p>
 
+            {/* Collection Type Selection */}
             <div className="mb-6">
-              <label
-                htmlFor="deckName"
-                className="block text-sm font-medium text-gray-700 mb-2"
-              >
-                Deck Name
-              </label>
-              <input
-                type="text"
-                id="deckName"
-                value={deckName}
-                onChange={(e) => setDeckName(e.target.value)}
-                placeholder="Enter a name for your flashcards"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#7231ff] focus:border-[#7231ff] outline-none transition-colors"
-                autoFocus
-              />
+              <div className="flex space-x-4 mb-4">
+                <button
+                  onClick={() => setIsNewCollection(true)}
+                  className={`flex-1 py-2 px-4 rounded-lg transition-colors ${
+                    isNewCollection
+                      ? "bg-[#7231ff] text-white"
+                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  }`}
+                >
+                  New Collection
+                </button>
+                <button
+                  onClick={() => setIsNewCollection(false)}
+                  className={`flex-1 py-2 px-4 rounded-lg transition-colors ${
+                    !isNewCollection
+                      ? "bg-[#7231ff] text-white"
+                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  }`}
+                >
+                  Existing Collection
+                </button>
+              </div>
+
+              {isNewCollection ? (
+                <div>
+                  <label
+                    htmlFor="deckName"
+                    className="block text-sm font-medium text-gray-700 mb-2"
+                  >
+                    New Collection Name
+                  </label>
+                  <input
+                    type="text"
+                    id="deckName"
+                    value={deckName}
+                    onChange={(e) => setDeckName(e.target.value)}
+                    placeholder="Enter a name for your collection"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#7231ff] focus:border-[#7231ff] outline-none transition-colors"
+                    autoFocus
+                  />
+
+                  {/* Add visibility toggle here */}
+                  <div className="mt-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Collection Visibility
+                    </label>
+                    <div className="flex space-x-4">
+                      <label className="inline-flex items-center">
+                        <input
+                          type="radio"
+                          className="form-radio text-[#7231ff]"
+                          name="visibility"
+                          checked={!isPublic}
+                          onChange={() => setIsPublic(false)}
+                        />
+                        <span className="ml-2 text-gray-700">Private</span>
+                      </label>
+                      <label className="inline-flex items-center">
+                        <input
+                          type="radio"
+                          className="form-radio text-[#7231ff]"
+                          name="visibility"
+                          checked={isPublic}
+                          onChange={() => setIsPublic(true)}
+                        />
+                        <span className="ml-2 text-gray-700">Public</span>
+                      </label>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">
+                      {isPublic
+                        ? "Public collections can be viewed by anyone"
+                        : "Private collections are only visible to you"}
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <label
+                    htmlFor="collectionSelect"
+                    className="block text-sm font-medium text-gray-700 mb-2"
+                  >
+                    Select Existing Collection
+                  </label>
+                  {collections.length > 0 ? (
+                    <select
+                      id="collectionSelect"
+                      value={selectedCollectionId}
+                      onChange={(e) => setSelectedCollectionId(e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#7231ff] focus:border-[#7231ff] outline-none transition-colors"
+                    >
+                      <option value="">Select a collection</option>
+                      {collections.map((collection) => (
+                        <option key={collection._id} value={collection._id}>
+                          {collection.name}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <p className="text-gray-500 italic">
+                      No existing collections found. Please create a new one.
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
+
+            {/* Error message in dialog */}
+            {error && (
+              <div className="mb-4 p-3 bg-red-50 rounded-lg text-red-700 text-sm">
+                {error}
+              </div>
+            )}
 
             <div className="flex justify-end space-x-3">
               <button
-                onClick={() => setShowDeckNameDialog(false)}
+                onClick={() => {
+                  setShowDeckNameDialog(false);
+                  setError(null);
+                }}
                 className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
               >
                 Cancel
               </button>
               <button
-                onClick={handleSaveDeck}
+                onClick={handleGenerateFlashcards}
                 disabled={loading}
                 className={`px-4 py-2 ${
                   loading ? "bg-gray-400" : "bg-[#7231ff] hover:bg-[#6020e0]"
@@ -457,10 +574,10 @@ function Upload() {
                 {loading ? (
                   <>
                     <ArrowPathIcon className="w-4 h-4 mr-2 animate-spin" />
-                    Saving...
+                    Generating...
                   </>
                 ) : (
-                  "Save & Continue"
+                  "Generate Flashcards"
                 )}
               </button>
             </div>

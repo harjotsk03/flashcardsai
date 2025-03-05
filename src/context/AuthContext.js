@@ -32,10 +32,12 @@ export const AuthProvider = ({ children }) => {
       );
       setUser(response.data);
       setLoading(false);
+      return response.data;
     } catch (error) {
       console.error("Error fetching user profile:", error);
       localStorage.removeItem("token");
       setLoading(false);
+      throw error;
     }
   };
 
@@ -105,6 +107,7 @@ export const AuthProvider = ({ children }) => {
         register,
         logout,
         setError,
+        fetchUserProfile,
       }}
     >
       {children}
